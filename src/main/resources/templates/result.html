@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><title>Result</title></head>
+<body>
+  <h2>Result</h2>
+  <p>Your move: <b th:text="${userMove}"></b></p>
+  <p>Computer move: <b th:text="${computerMove}"></b></p>
+  <h3 th:text="${result}"></h3>
+  <a href="/">Play again</a>
+</body>
+</html>

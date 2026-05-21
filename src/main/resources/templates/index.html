@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rock Paper Scissors</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background-color: #fafafa;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 15px;
+      color: #333;
+    }
+
+    #game-area {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 80px;
+      margin-top: 20px;
+    }
+
+    .player, .computer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    video, img {
+      width: 300px;
+      height: 225px;
+      border-radius: 10px;
+      border: 3px solid #444;
+      object-fit: cover;
+    }
+
+    .score {
+      position: absolute;
+      top: -40px;
+      font-size: 22px;
+      font-weight: bold;
+      color: #333;
+      background-color: #fff;
+      padding: 5px 15px;
+      border-radius: 15px;
+      border: 2px solid #ccc;
+      box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+    }
+
+    button {
+      padding: 10px 22px;
+      font-size: 18px;
+      margin: 10px;
+      cursor: pointer;
+      border-radius: 10px;
+      border: none;
+      background-color: #0078D7;
+      color: white;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background-color: #005fa3;
+    }
+
+    #countdown {
+      font-size: 48px;
+      color: #d9534f;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+
+    #result {
+      font-size: 22px;
+      margin-top: 25px;
+      color: #333;
+    }
+
+    #buttons {
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Rock Paper Scissors 🤖</h1>
+
+  <div id="game-area">
+    <div class="player">
+      <div class="score" id="playerScore">You: 0</div>
+      <video id="video" autoplay></video>
+    </div>
+    <div class="computer">
+      <div class="score" id="computerScore">Computer: 0</div>
+      <img id="computerMove" src="" alt="Computer move will appear here">
+    </div>
+  </div>
+
+  <div id="countdown"></div>
+
+  <div id="buttons">
+    <button id="startBtn">Start</button>
+    <button id="resetBtn" style="background-color:#d9534f;">Reset</button>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    const video = document.getElementById('video');
+    const countdown = document.getElementById('countdown');
+    const resultDiv = document.getElementById('result');
+    const computerMoveImg = document.getElementById('computerMove');
+    const playerScoreEl = document.getElementById('playerScore');
+    const computerScoreEl = document.getElementById('computerScore');
+
+    let playerScore = 0;
+    let computerScore = 0;
+
+    // ✅ Access webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => console.error("Camera access denied:", err));
+
+    // ✅ Computer move images (store these in src/main/resources/static/images/)
+    const computerImages = {
+      rock: '/images/rock.png',
+      paper: '/images/paper.png',
+      scissors: '/images/scissors.png'
+    };
+
+    // ✅ Start button
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      resultDiv.innerHTML = "";
+      computerMoveImg.src = "";
+      let count = 3;
+      countdown.innerText = count;
+
+      const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdown.innerText = count;
+        } else {
+          clearInterval(timer);
+          countdown.innerText = "";
+          captureAndSend();
+        }
+      }, 1000);
+    });
+
+    // ✅ Reset scores
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      playerScore = 0;
+      computerScore = 0;
+      updateScores();
+      resultDiv.innerHTML = "";
+      computerMoveImg.src = "";
+    });
+
+    // ✅ Capture webcam frame and send to Flask
+    async function captureAndSend() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 224;
+      canvas.height = 224;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, 224, 224);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+      const formData = new FormData();
+      formData.append('image', blob, 'capture.jpg');
+
+      try {
+        const response = await fetch('http://127.0.0.1:5000/predict', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+
+        const playerMove = data.prediction;
+        const computerOptions = ['rock', 'paper', 'scissors'];
+        const computerMove = computerOptions[Math.floor(Math.random() * 3)];
+        computerMoveImg.src = computerImages[computerMove];
+
+        const result = determineWinner(playerMove, computerMove);
+        resultDiv.innerHTML = `
+          🧍‍♂️ You: <strong>${playerMove}</strong><br>
+          🤖 Computer: <strong>${computerMove}</strong><br>
+          <h3>${result}</h3>
+        `;
+      } catch (err) {
+        console.error(err);
+        resultDiv.innerHTML = "⚠️ Error connecting to model service!";
+      }
+    }
+
+    // ✅ Game logic
+    function determineWinner(player, computer) {
+      if (player === computer) return "It's a tie!";
+      if (
+        (player === 'rock' && computer === 'scissors') ||
+        (player === 'paper' && computer === 'rock') ||
+        (player === 'scissors' && computer === 'paper')
+      ) {
+        playerScore++;
+        updateScores();
+        return "You win! 🎉";
+      } else {
+        computerScore++;
+        updateScores();
+        return "Computer wins! 💻";
+      }
+    }
+
+    // ✅ Update score display
+    function updateScores() {
+      playerScoreEl.textContent = `You: ${playerScore}`;
+      computerScoreEl.textContent = `Computer: ${computerScore}`;
+    }
+  </script>
+</body>
+</html>
